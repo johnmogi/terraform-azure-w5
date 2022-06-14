@@ -102,7 +102,7 @@ resource "azurerm_network_security_group" "postgressubnet" {
 }
 
 
-# Create network interface
+# Create FE network interface
 resource "azurerm_network_interface" "myterraformnic" {
   name                = "myNIC"
   location            = azurerm_resource_group.rg.location
@@ -116,29 +116,28 @@ resource "azurerm_network_interface" "myterraformnic" {
   }
 }
 
-# Connect the security group to the network interface
+# Connect the FE security group to the network interface
 resource "azurerm_network_interface_security_group_association" "example" {
   network_interface_id      = azurerm_network_interface.myterraformnic.id
   network_security_group_id = azurerm_network_security_group.myterraformnsg.id
 }
 
 
-# # Create BE network interface
-# resource "azurerm_network_interface" "postgres_nic" {
-#   name                = "be_nic"
-#   location            = azurerm_resource_group.rg.location
-#   resource_group_name = azurerm_resource_group.rg.name
+# Create BE network interface
+resource "azurerm_network_interface" "postgres_nic" {
+  name                = "be_nic"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 
-#   ip_configuration {
-#     name                          = "internal_con"postgres_nic
-#     subnet_id                     = azurerm_subnet.postgressubnet.id
-#     private_ip_address_allocation = "Dynamic"
-#     public_ip_address_id          = azurerm_public_ip.myterraformpublicip.id
-#   }
-# }
+  ip_configuration {
+    name                          = "internal_con"
+    subnet_id                     = azurerm_subnet.postgressubnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
 
-# # Connect the BE security group to the BE network interface
-# resource "azurerm_network_interface_security_group_association" "be_nic" {
-#   network_interface_id      = azurerm_network_interface.postgres_nic.id
-#   network_security_group_id = azurerm_network_security_group.myterraformnsg.id
-# }
+# Connect the BE security group to the BE network interface
+resource "azurerm_network_interface_security_group_association" "be_nic" {
+  network_interface_id      = azurerm_network_interface.postgres_nic.id
+  network_security_group_id = azurerm_network_security_group.postgressubnet.id
+}
