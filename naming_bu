@@ -1,4 +1,3 @@
-
 resource "random_pet" "rg-name" {
   prefix    = var.resource_group_name_prefix
 }
@@ -15,19 +14,27 @@ resource "azurerm_resource_group" "rg" {
 
 # Create virtual network
 resource "azurerm_virtual_network" "myterraformnetwork" {
-  name                = "myVnet"
+  name                = "weight_app_vnet"
   address_space       = ["10.0.0.0/16"]
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Create subnet
-resource "azurerm_subnet" "myterraformsubnet" {
+# Create subnets
+resource "azurerm_subnet" "frontend_subnet" {
   name                 = "mySubnet"
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.myterraformnetwork.name
   address_prefixes     = ["10.0.10.0/24"]
 }
+
+resource "azurerm_subnet" "postgressubnet" {
+  name                 = "privatenet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.myterraformnetwork.name
+  address_prefixes     = ["10.0.0.0/24"]
+}
+
 # Create public IPs
 resource "azurerm_public_ip" "myterraformpublicip" {
   name                = "myPublicIP"
@@ -64,13 +71,8 @@ resource "azurerm_network_security_group" "myterraformnsg" {
     destination_address_prefix = "*"
   }
 }
-## private subnet:
-resource "azurerm_subnet" "postgressubnet" {
-  name                 = "privatenet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.myterraformnetwork.name
-  address_prefixes     = ["10.0.0.0/24"]
-}
+## private subnet-
+
 # Create Network Security Group and rule
 resource "azurerm_network_security_group" "postgressubnet" {
   name                = "myNetworkSecurityGroup"
@@ -102,43 +104,23 @@ resource "azurerm_network_security_group" "postgressubnet" {
 }
 
 
-# Create network interface
-resource "azurerm_network_interface" "myterraformnic" {
-  name                = "myNIC"
+# Create frontend network interface
+resource "azurerm_network_interface" "fe_nic" {
+  name                = "fe_nic"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
-    name                          = "myNicConfiguration"
-    subnet_id                     = azurerm_subnet.myterraformsubnet.id
+    name                          = "fe_nic_configuration"
+    subnet_id                     = azurerm_subnet.frontend_subnet.id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.myterraformpublicip.id
   }
 }
 
-# Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "example" {
-  network_interface_id      = azurerm_network_interface.myterraformnic.id
+# Connect the FE security group to the FE network interface
+resource "azurerm_network_interface_security_group_association" "fe_nic" {
+  network_interface_id      = azurerm_network_interface.fe_nic.id
   network_security_group_id = azurerm_network_security_group.myterraformnsg.id
 }
 
-
-# # Create BE network interface
-# resource "azurerm_network_interface" "postgres_nic" {
-#   name                = "be_nic"
-#   location            = azurerm_resource_group.rg.location
-#   resource_group_name = azurerm_resource_group.rg.name
-
-#   ip_configuration {
-#     name                          = "internal_con"postgres_nic
-#     subnet_id                     = azurerm_subnet.postgressubnet.id
-#     private_ip_address_allocation = "Dynamic"
-#     public_ip_address_id          = azurerm_public_ip.myterraformpublicip.id
-#   }
-# }
-
-# # Connect the BE security group to the BE network interface
-# resource "azurerm_network_interface_security_group_association" "be_nic" {
-#   network_interface_id      = azurerm_network_interface.postgres_nic.id
-#   network_security_group_id = azurerm_network_security_group.myterraformnsg.id
-# }
