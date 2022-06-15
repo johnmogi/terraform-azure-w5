@@ -12,6 +12,8 @@ variable "prefix" {
   default = "weight_app"
   description   = "weight app prefix"
 }
+
+
 # there must be a way to hide these:
 variable "admin_username" {
   type        = string

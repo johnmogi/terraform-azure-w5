@@ -148,7 +148,7 @@ resource "azurerm_lb_backend_address_pool" "backend_pool" {
 
 resource "azurerm_network_interface" "network_interface_app" {
   count               = "3"
-  name                = "${var.prefix}-nic${count.index}"
+  name                = "${var.prefix}NC${count.index}"
   resource_group_name = random_pet.name.id
   location            = var.location
 
@@ -175,11 +175,11 @@ resource "azurerm_network_interface" "network_interface_db" {
 
 
 resource "azurerm_availability_set" "avset" {
-  name                         = "${var.prefix}avset"
+  name                         = "${var.prefix}availabilitySet"
   location                     = var.location
   resource_group_name          = azurerm_resource_group.rg.name
-  platform_fault_domain_count  = 2
-  platform_update_domain_count = 2
+  platform_fault_domain_count  = 3
+  platform_update_domain_count = 3
   managed                      = true
 }
 
@@ -217,9 +217,11 @@ resource "azurerm_linux_virtual_machine" "postgresMachine" {
 
 # application virtual machine
 resource "azurerm_linux_virtual_machine" "frontendServer" {
-#  count                           = "1"
-#   name                = "${var.prefix}-nic${count.index}"
-  name = "frontendMachine"
+  count                           = "3"
+
+#  name= element(var.vm_names_grupo1,count.index)
+ name                = "frontendMachine${count.index}"
+#  name = "frontendMachine"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   disable_password_authentication = false
@@ -229,7 +231,11 @@ resource "azurerm_linux_virtual_machine" "frontendServer" {
   admin_password                  = var.admin_password
   availability_set_id             = azurerm_availability_set.avset.id
   network_interface_ids           = [
-    azurerm_network_interface.network_interface_app[0].id,
+#    azurerm_network_interface.network_interface_app[0],
+
+   "${element(azurerm_network_interface.network_interface_app.*.id, count.index)}"
+#    element(azurerm_network_interface,count.index)
+#    [element(azurerm_network_interface.network_interface_app.id,index)]
   ]
 
   os_disk {
