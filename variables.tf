@@ -1,17 +1,25 @@
-variable "resource_group_name_prefix" {
-  default       = "rg"
-  description   = "Prefix of the resource group name that's combined with a random ID so name is unique in your Azure subscription."
+variable "rg_main" {
+  default = "weight_app_group"
 }
-
-variable "resource_group_location" {
+variable "location" {
+  type = string
   default = "eastus"
   description   = "Location of the resource group."
 }
-
-
-
-# variable "var1" {
-#   type = string
-#   description = "my first variable"
-#   default = "foo"
-# }
+# prefix resources association tool
+variable "prefix" {
+  type        = string
+  default = "weight_app"
+  description   = "weight app prefix"
+}
+# there must be a way to hide these:
+variable "admin_username" {
+  type        = string
+  default = "adminuser"
+  description   = "frontend admin user name"
+}
+variable "admin_password" {
+  type        = string
+  default = "P@$$w0rd1234!"
+  description   = "frontend admin password"
+}

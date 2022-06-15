@@ -1,42 +1,45 @@
-
-resource "random_pet" "rg-name" {
-  prefix    = var.resource_group_name_prefix
+# generic animal name decoration
+resource "random_pet" "name" {
+  prefix    = var.prefix
 }
 
 resource "azurerm_resource_group" "rg" {
-  name      = random_pet.rg-name.id
-  location  = var.resource_group_location
-
+  name      = random_pet.name.id
+  location  = var.location
     tags = {
-    enviroment = "Terraform"
-    stage      = "phase 1"
+    environment = "development"
+    stage      = "load balance weight group"
   }
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "myterraformnetwork" {
-  name                = "myVnet"
+#############################################################################
+# VIRTUAL NETWORKS
+#############################################################################
+
+resource "azurerm_virtual_network" "weight_app_network" {
+  name                = "${var.prefix}_vnet"
   address_space       = ["10.0.0.0/16"]
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Create subnet
-resource "azurerm_subnet" "myterraformsubnet" {
-  name                 = "mySubnet"
+## PUBLIC subnet:
+resource "azurerm_subnet" "frontend_subnet" {
+  name                 = "frontendSubnet"
   resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.myterraformnetwork.name
+  virtual_network_name = azurerm_virtual_network.weight_app_network.name
   address_prefixes     = ["10.0.10.0/24"]
 }
-# Create public IPs
-resource "azurerm_public_ip" "myterraformpublicip" {
-  name                = "myPublicIP"
+
+# PUBLIC IP
+resource "azurerm_public_ip" "frontend_public_ip" {
+  name                = "weight_app_public_ip"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
 }
-# public Network Security Group and rule
-resource "azurerm_network_security_group" "myterraformnsg" {
+# PUBLIC Network Security Group and rule
+resource "azurerm_network_security_group" "public_nsg" {
   name                = "myNetworkSecurityGroup"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -64,16 +67,17 @@ resource "azurerm_network_security_group" "myterraformnsg" {
     destination_address_prefix = "*"
   }
 }
-## private subnet:
-resource "azurerm_subnet" "postgressubnet" {
+
+## PRIVATE subnet:
+resource "azurerm_subnet" "backend_subnet" {
   name                 = "privatenet"
   resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.myterraformnetwork.name
+  virtual_network_name = azurerm_virtual_network.weight_app_network.name
   address_prefixes     = ["10.0.0.0/24"]
 }
-# Create Network Security Group and rule
-resource "azurerm_network_security_group" "postgressubnet" {
-  name                = "myNetworkSecurityGroup"
+#  PRIVATE Network Security Group and rule
+resource "azurerm_network_security_group" "backend_subnet" {
+  name                = "bENetworkSecurityGroup"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
@@ -101,43 +105,141 @@ resource "azurerm_network_security_group" "postgressubnet" {
   }
 }
 
+#############################################################################
+# LOAD BALANCER
+#############################################################################
 
-# Create FE network interface
-resource "azurerm_network_interface" "myterraformnic" {
-  name                = "myNIC"
+resource "azurerm_lb"  "azurerm_lb" {
+  name                = "loadbalance1"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
-  ip_configuration {
-    name                          = "myNicConfiguration"
-    subnet_id                     = azurerm_subnet.myterraformsubnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.myterraformpublicip.id
+  # retrieve frunt end ip from machine
+  frontend_ip_configuration {
+    name                 = "frontend_ip"
+    public_ip_address_id = azurerm_public_ip.frontend_public_ip.id
   }
 }
 
-# Connect the FE security group to the network interface
-resource "azurerm_network_interface_security_group_association" "example" {
-  network_interface_id      = azurerm_network_interface.myterraformnic.id
-  network_security_group_id = azurerm_network_security_group.myterraformnsg.id
+# Load balancer rules
+
+resource "azurerm_lb_rule"  "azurerm_lb_rule" {
+  resource_group_name            = random_pet.name.id
+  loadbalancer_id                = azurerm_lb.azurerm_lb.id
+  name                           = "lb-rule-http"
+  protocol                       = "Tcp"
+  frontend_port                  = 8080
+  backend_port                   = 8080
+  frontend_ip_configuration_name = azurerm_lb.azurerm_lb.frontend_ip_configuration[0].name
+
+  backend_address_pool_id        = azurerm_lb_backend_address_pool.backend_pool.id
+}
+
+resource "azurerm_lb_backend_address_pool" "backend_pool" {
+  loadbalancer_id = azurerm_lb.azurerm_lb.id
+  name            = "BackEndAddressPool"
+}
+
+#############################################################################
+# LOAD BALANCED NETWORK INTERFACE
+#############################################################################
+
+# in need of 3 machines? keep it dry
+
+resource "azurerm_network_interface" "network_interface_app" {
+  count               = "3"
+  name                = "${var.prefix}-nic${count.index}"
+  resource_group_name = random_pet.name.id
+  location            = var.location
+
+  ip_configuration {
+    name                          = "primary"
+    subnet_id                     = azurerm_subnet.frontend_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_network_interface" "network_interface_db" {
+  count               = "1"
+  name                = "postgres_network_interface"
+  resource_group_name = random_pet.name.id
+  location            = var.location
+
+  ip_configuration {
+    name                          = "primary"
+    subnet_id                     = azurerm_subnet.backend_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
 }
 
 
-# Create BE network interface
-resource "azurerm_network_interface" "postgres_nic" {
-  name                = "be_nic"
-  location            = azurerm_resource_group.rg.location
+
+resource "azurerm_availability_set" "avset" {
+  name                         = "${var.prefix}avset"
+  location                     = var.location
+  resource_group_name          = azurerm_resource_group.rg.name
+  platform_fault_domain_count  = 2
+  platform_update_domain_count = 2
+  managed                      = true
+}
+
+#############################################################################
+# VIRTUAL MACHINE
+#############################################################################
+
+resource "azurerm_linux_virtual_machine" "postgresMachine" {
+
+  name                            = "postgresMachine"
+  resource_group_name             = random_pet.name.id
+  location                        = var.location
+  size                            = "Standard_b1s"
+  admin_username                  = var.admin_username
+  admin_password                  = var.admin_password
+#  availability_set_id             = azurerm_availability_set.avset.id
+  disable_password_authentication = false
+
+  network_interface_ids = [
+    azurerm_network_interface.network_interface_db[0].id,
+  ]
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts-gen2"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+}
+
+# application virtual machine
+resource "azurerm_linux_virtual_machine" "frontendServer" {
+#  count                           = "1"
+#   name                = "${var.prefix}-nic${count.index}"
+  name = "frontendMachine"
   resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  disable_password_authentication = false
+#  size                = "Standard_F2"
+  size                = "Standard_b1s"
+  admin_username                  = var.admin_username
+  admin_password                  = var.admin_password
+  availability_set_id             = azurerm_availability_set.avset.id
+  network_interface_ids           = [
+    azurerm_network_interface.network_interface_app[0].id,
+  ]
 
-  ip_configuration {
-    name                          = "internal_con"
-    subnet_id                     = azurerm_subnet.postgressubnet.id
-    private_ip_address_allocation = "Dynamic"
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
   }
-}
-
-# Connect the BE security group to the BE network interface
-resource "azurerm_network_interface_security_group_association" "be_nic" {
-  network_interface_id      = azurerm_network_interface.postgres_nic.id
-  network_security_group_id = azurerm_network_security_group.postgressubnet.id
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-focal"
+    sku       = "20_04-lts-gen2"
+    version   = "latest"
+  }
 }
