@@ -40,7 +40,7 @@ resource "azurerm_public_ip" "frontend_public_ip" {
 }
 # PUBLIC Network Security Group and rule
 resource "azurerm_network_security_group" "public_nsg" {
-  name                = "myNetworkSecurityGroup"
+  name                = "FrontEndSecurityGroup"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
@@ -67,7 +67,19 @@ resource "azurerm_network_security_group" "public_nsg" {
     destination_address_prefix = "*"
   }
 }
-
+# connect public nic to nsg fix to dry
+resource "azurerm_network_interface_security_group_association" "fe_nsg_assoc0" {
+  network_interface_id      = azurerm_network_interface.network_interface_app[0].id
+  network_security_group_id = azurerm_network_security_group.public_nsg.id
+}
+resource "azurerm_network_interface_security_group_association" "fe_nsg_assoc1" {
+  network_interface_id      = azurerm_network_interface.network_interface_app[1].id
+  network_security_group_id = azurerm_network_security_group.public_nsg.id
+}
+resource "azurerm_network_interface_security_group_association" "fe_nsg_assoc2" {
+  network_interface_id      = azurerm_network_interface.network_interface_app[2].id
+  network_security_group_id = azurerm_network_security_group.public_nsg.id
+}
 ## PRIVATE subnet:
 resource "azurerm_subnet" "backend_subnet" {
   name                 = "privatenet"
@@ -103,6 +115,11 @@ resource "azurerm_network_security_group" "backend_subnet" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
+}
+# connect be nic to nsg
+resource "azurerm_network_interface_security_group_association" "be_nsg_assoc" {
+  network_interface_id      = azurerm_network_interface.network_interface_db[0].id
+  network_security_group_id = azurerm_network_security_group.backend_subnet.id
 }
 
 #############################################################################
@@ -230,13 +247,7 @@ resource "azurerm_linux_virtual_machine" "frontendServer" {
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   availability_set_id             = azurerm_availability_set.avset.id
-  network_interface_ids           = [
-#    azurerm_network_interface.network_interface_app[0],
-
-   "${element(azurerm_network_interface.network_interface_app.*.id, count.index)}"
-#    element(azurerm_network_interface,count.index)
-#    [element(azurerm_network_interface.network_interface_app.id,index)]
-  ]
+  network_interface_ids           = [element(azurerm_network_interface.network_interface_app.*.id, count.index) ]
 
   os_disk {
     caching              = "ReadWrite"

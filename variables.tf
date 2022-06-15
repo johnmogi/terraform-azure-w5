@@ -1,3 +1,6 @@
+variable "machines_number" {
+  default = 3
+}
 variable "rg_main" {
   default = "weight_app_group"
 }

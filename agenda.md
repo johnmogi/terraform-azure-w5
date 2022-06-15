@@ -16,3 +16,4 @@ need to build a load balance first-
 health probes
 BackEndAddressPool -1lb health rule
 
+exit password
