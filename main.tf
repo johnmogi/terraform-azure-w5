@@ -1,14 +1,14 @@
 # generic animal name decoration
 resource "random_pet" "name" {
-  prefix    = var.prefix
+  prefix = var.prefix
 }
 
 resource "azurerm_resource_group" "rg" {
-  name      = random_pet.name.id
-  location  = var.location
-    tags = {
+  name     = random_pet.name.id
+  location = var.location
+  tags = {
     environment = "development"
-    stage      = "load balance weight group"
+    stage       = "load balance weight group"
   }
 }
 
@@ -55,7 +55,7 @@ resource "azurerm_network_security_group" "public_nsg" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
-    security_rule {
+  security_rule {
     name                       = "HTTP"
     priority                   = 901
     direction                  = "Inbound"
@@ -104,7 +104,7 @@ resource "azurerm_network_security_group" "backend_subnet" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
-    security_rule {
+  security_rule {
     name                       = "Postgresql"
     priority                   = 901
     direction                  = "Inbound"
@@ -126,7 +126,7 @@ resource "azurerm_network_interface_security_group_association" "be_nsg_assoc" {
 # LOAD BALANCER
 #############################################################################
 
-resource "azurerm_lb"  "azurerm_lb" {
+resource "azurerm_lb" "azurerm_lb" {
   name                = "loadbalance1"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -140,7 +140,7 @@ resource "azurerm_lb"  "azurerm_lb" {
 
 # Load balancer rules
 
-resource "azurerm_lb_rule"  "azurerm_lb_rule" {
+resource "azurerm_lb_rule" "azurerm_lb_rule" {
   resource_group_name            = random_pet.name.id
   loadbalancer_id                = azurerm_lb.azurerm_lb.id
   name                           = "lb-rule-http"
@@ -149,7 +149,7 @@ resource "azurerm_lb_rule"  "azurerm_lb_rule" {
   backend_port                   = 8080
   frontend_ip_configuration_name = azurerm_lb.azurerm_lb.frontend_ip_configuration[0].name
 
-  backend_address_pool_id        = azurerm_lb_backend_address_pool.backend_pool.id
+  backend_address_pool_id = azurerm_lb_backend_address_pool.backend_pool.id
 }
 
 resource "azurerm_lb_backend_address_pool" "backend_pool" {
@@ -160,8 +160,6 @@ resource "azurerm_lb_backend_address_pool" "backend_pool" {
 #############################################################################
 # LOAD BALANCED NETWORK INTERFACE
 #############################################################################
-
-# in need of 3 machines? keep it dry
 
 resource "azurerm_network_interface" "network_interface_app" {
   count               = "3"
@@ -206,13 +204,14 @@ resource "azurerm_availability_set" "avset" {
 
 resource "azurerm_linux_virtual_machine" "postgresMachine" {
 
-  name                            = "postgresMachine"
-  resource_group_name             = random_pet.name.id
-  location                        = var.location
-  size                            = "Standard_b1s"
-  admin_username                  = var.admin_username
-  admin_password                  = var.admin_password
-#  availability_set_id             = azurerm_availability_set.avset.id
+  name                = "postgresMachine"
+  resource_group_name = random_pet.name.id
+  location            = var.location
+  size                = "Standard_b1s"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+
+  #  availability_set_id             = azurerm_availability_set.avset.id
   disable_password_authentication = false
 
   network_interface_ids = [
@@ -234,29 +233,43 @@ resource "azurerm_linux_virtual_machine" "postgresMachine" {
 
 # application virtual machine
 resource "azurerm_linux_virtual_machine" "frontendServer" {
-  count                           = "3"
+  count = "3"
 
-#  name= element(var.vm_names_grupo1,count.index)
- name                = "frontendMachine${count.index}"
-#  name = "frontendMachine"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  name                            = "frontendMachine${count.index}"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
   disable_password_authentication = false
-#  size                = "Standard_F2"
-  size                = "Standard_b1s"
-  admin_username                  = var.admin_username
-  admin_password                  = var.admin_password
-  availability_set_id             = azurerm_availability_set.avset.id
-  network_interface_ids           = [element(azurerm_network_interface.network_interface_app.*.id, count.index) ]
+  #  size                = "Standard_F2"
+  size                  = "Standard_b1s"
+  admin_username        = var.admin_username
+  admin_password        = var.admin_password
+  availability_set_id   = azurerm_availability_set.avset.id
+  network_interface_ids = [element(azurerm_network_interface.network_interface_app.*.id, count.index)]
 
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
+
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
     sku       = "20_04-lts-gen2"
     version   = "latest"
   }
+  #	provisioner "file" {
+  #        source = "example_file.txt"
+  #        destination = "/tmp/example_file.txt"
+  #    }
+  tags = {
+    environment = "staging"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir /var/www ; cd /var/www",
+      "git clone https://github.com/johnmogi/bootcamp-app.git",
+      "sudo chmod +x ./frontend.sh; ./frontend.sh"
+    ]
+  }
+
 }

@@ -6,6 +6,7 @@
 #  value = admin_username
 #}
 #
-#output "password" {
-#  value = admin_password
-#}
+output "password" {
+  value = var.admin_password
+  #   sensitive = true
+}
