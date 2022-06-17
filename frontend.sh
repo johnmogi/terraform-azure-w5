@@ -1,11 +1,12 @@
-#!/bin/bash
-apt update
+#!/bin/sh
+apt update -y
 apt install nodejs -y ;apt install npm -y
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+apt install curl -y
+npm install git -v
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | sh
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-source ~/.bashrc
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  
 nvm install 14
 mkdir /var/www ; cd /var/www
 git clone https://github.com/johnmogi/bootcamp-app.git
@@ -24,17 +25,15 @@ OKTA_CLIENT_ID="0oa57uv2e4ZbMvc8b5d7"
 OKTA_CLIENT_SECRET="-dS3ittft57jAzdyGrR1AmJhVD9qr2xapEJla7MF"
 
 # Postgres configuration
-PGHOST=34.90.138.223
-PGUSERNAME=postgres
+PGHOST=10.0.0.4
+PGUSERNAME=adminuser
 PGDATABASE=postgres
-PGPASSWORD=hxfTU0875GCi
+PGPASSWORD=P@$$w0rd1234!
 PGPORT=5432
 """ > .env
-npm run initdb
+# npm run initdb
 sudo npm i -g pm2
-# pm2 start start.sh --name weight
 pm2 start npm -- start --name weight
-# sudo env PATH=$PATH:/usr/local/bin pm2 startup -u azureuser
 sudo env PATH=$PATH:/home/azureuser/.nvm/versions/node/v14.19.3/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u azureuser --hp /home/azureuser
 sudo systemctl start pm2-azureuser
 pm2 savecd ..
